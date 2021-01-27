@@ -1,11 +1,11 @@
 diff --git a/cpp/cmake_modules/BuildUtils.cmake b/cpp/cmake_modules/BuildUtils.cmake
-index e59b4a38a..9bd895608 100644
+index 2fd897b5d..b6118ad4f 100644
 --- a/cpp/cmake_modules/BuildUtils.cmake
 +++ b/cpp/cmake_modules/BuildUtils.cmake
 @@ -440,7 +440,7 @@ function(ADD_ARROW_LIB LIB_NAME)
        target_include_directories(${LIB_NAME}_static PRIVATE ${ARG_PRIVATE_INCLUDES})
      endif()
-
+ 
 -    if(MSVC_TOOLCHAIN)
 +    if(MSVC_TOOLCHAIN AND 0)
        set(LIB_NAME_STATIC ${LIB_NAME}_static)
@@ -26,29 +26,30 @@ index b46a0f1a0..3d87f5204 100644
 +  #pkg_check_modules(BROTLI_PC libbrotlicommon libbrotlienc libbrotlidec)
 +  if(BROTLI_PC_FOUND AND 0) # Find via pkg_check_modules disabled as incompatible with vcpkg
      set(BROTLI_INCLUDE_DIR "${BROTLI_PC_libbrotlicommon_INCLUDEDIR}")
-
+ 
      # Some systems (e.g. Fedora) don't fill Brotli_LIBRARY_DIRS, so add the other dirs here.
 diff --git a/cpp/cmake_modules/FindLz4.cmake b/cpp/cmake_modules/FindLz4.cmake
-index 14b6d93b9..d8d80c408 100644
+index 14b6d93b9..dd8c396a1 100644
 --- a/cpp/cmake_modules/FindLz4.cmake
 +++ b/cpp/cmake_modules/FindLz4.cmake
-@@ -15,10 +15,12 @@
+@@ -15,10 +15,13 @@
  # specific language governing permissions and limitations
  # under the License.
-
+ 
 -if(MSVC_TOOLCHAIN AND NOT DEFINED LZ4_MSVC_LIB_PREFIX)
 -  set(LZ4_MSVC_LIB_PREFIX "lib")
 +# Avoid the debug build linking to the release library by mistake.
 +# In theory harmless if static linking at this point, but disastrous if done for a shared library.
 +if(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
 +  set(LZ4_LIB_NAME_DEBUG_SUFFIX d)
++  set(LZ4_ROOT_DEBUG_SUFFIX /debug)
  endif()
 -set(LZ4_LIB_NAME_BASE "${LZ4_MSVC_LIB_PREFIX}lz4")
 +set(LZ4_LIB_NAME_BASE "lz4${LZ4_LIB_NAME_DEBUG_SUFFIX}")
-
+ 
  if(ARROW_LZ4_USE_SHARED)
    set(LZ4_LIB_NAMES)
-@@ -34,12 +36,8 @@ if(ARROW_LZ4_USE_SHARED)
+@@ -34,18 +37,14 @@ if(ARROW_LZ4_USE_SHARED)
        LZ4_LIB_NAMES
        "${CMAKE_SHARED_LIBRARY_PREFIX}${LZ4_LIB_NAME_BASE}${CMAKE_SHARED_LIBRARY_SUFFIX}")
  else()
@@ -60,19 +61,15 @@ index 14b6d93b9..d8d80c408 100644
 -      "${CMAKE_STATIC_LIBRARY_PREFIX}${LZ4_LIB_NAME_BASE}${LZ4_STATIC_LIB_SUFFIX}")
 +      "${CMAKE_STATIC_LIBRARY_PREFIX}${LZ4_LIB_NAME_BASE}${CMAKE_STATIC_LIBRARY_SUFFIX}")
  endif()
-
+ 
  if(LZ4_ROOT)
-@@ -56,8 +54,8 @@ if(LZ4_ROOT)
-
- else()
-   find_package(PkgConfig QUIET)
--  pkg_check_modules(LZ4_PC liblz4)
--  if(LZ4_PC_FOUND)
-+  #pkg_check_modules(LZ4_PC liblz4)
-+  if(0) # Do not use pkg_check_modules, doesn't seem to work correctly on some macOS versions (10.x in GitHub Actions)
-     set(LZ4_INCLUDE_DIR "${LZ4_PC_INCLUDEDIR}")
-
-     list(APPEND LZ4_PC_LIBRARY_DIRS "${LZ4_PC_LIBDIR}")
+   find_library(LZ4_LIB
+                NAMES ${LZ4_LIB_NAMES}
+-               PATHS ${LZ4_ROOT}
++               PATHS ${LZ4_ROOT}${LZ4_ROOT_DEBUG_SUFFIX}
+                PATH_SUFFIXES ${ARROW_LIBRARY_PATH_SUFFIXES}
+                NO_DEFAULT_PATH)
+   find_path(LZ4_INCLUDE_DIR
 diff --git a/cpp/cmake_modules/FindSnappy.cmake b/cpp/cmake_modules/FindSnappy.cmake
 index 5784cf592..817cf0c47 100644
 --- a/cpp/cmake_modules/FindSnappy.cmake
@@ -80,7 +77,7 @@ index 5784cf592..817cf0c47 100644
 @@ -15,20 +15,27 @@
  # specific language governing permissions and limitations
  # under the License.
-
+ 
 +# Avoid the debug build linking to the release library by mistake.
 +# In theory harmless if static linking at this point, but disastrous if done for a shared library.
 +if(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
@@ -108,16 +105,16 @@ index 5784cf592..817cf0c47 100644
 -  set(SNAPPY_LIB_NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}${SNAPPY_STATIC_LIB_NAME_BASE}${CMAKE_STATIC_LIBRARY_SUFFIX}")
 +  set(SNAPPY_LIB_NAMES "${CMAKE_STATIC_LIBRARY_PREFIX}${SNAPPY_LIB_NAME_BASE}${CMAKE_STATIC_LIBRARY_SUFFIX}")
  endif()
-
+ 
  if(Snappy_ROOT)
 diff --git a/cpp/cmake_modules/FindThrift.cmake b/cpp/cmake_modules/FindThrift.cmake
-index 273d907ed..65f477f54 100644
+index 273d907ed..4a9aa40d3 100644
 --- a/cpp/cmake_modules/FindThrift.cmake
 +++ b/cpp/cmake_modules/FindThrift.cmake
 @@ -39,6 +39,12 @@ function(EXTRACT_THRIFT_VERSION)
    endif()
  endfunction(EXTRACT_THRIFT_VERSION)
-
+ 
 +# Avoid the debug build linking to the release library by mistake.
 +# In theory harmless if static linking at this point, but disastrous if done for a shared library.
 +if(CMAKE_BUILD_TYPE STREQUAL "DEBUG")
@@ -133,7 +130,7 @@ index 273d907ed..65f477f54 100644
  endif()
 -set(THRIFT_LIB_NAME_BASE "thrift${THRIFT_MSVC_LIB_SUFFIX}")
 +set(THRIFT_LIB_NAME_BASE "thrift${THRIFT_MSVC_LIB_SUFFIX}${THRIFT_LIB_NAME_DEBUG_SUFFIX}")
-
+ 
  if(ARROW_THRIFT_USE_SHARED)
    set(THRIFT_LIB_NAMES thrift)
 @@ -84,8 +90,8 @@ else()
@@ -145,7 +142,7 @@ index 273d907ed..65f477f54 100644
 +  #pkg_check_modules(THRIFT_PC thrift)
 +  if(0) # Do not use pkg_check_modules, as it finds the wrong location (an intermediate build dir).
      set(THRIFT_INCLUDE_DIR "${THRIFT_PC_INCLUDEDIR}")
-
+ 
      list(APPEND THRIFT_PC_LIBRARY_DIRS "${THRIFT_PC_LIBDIR}")
 @@ -101,8 +107,7 @@ else()
      set(THRIFT_VERSION ${THRIFT_PC_VERSION})
@@ -158,7 +155,7 @@ index 273d907ed..65f477f54 100644
      find_program(THRIFT_COMPILER thrift PATH_SUFFIXES "bin")
      extract_thrift_version()
 diff --git a/cpp/cmake_modules/Findzstd.cmake b/cpp/cmake_modules/Findzstd.cmake
-index 6659a682d..d8cc4f72d 100644
+index f32892aec..92e235791 100644
 --- a/cpp/cmake_modules/Findzstd.cmake
 +++ b/cpp/cmake_modules/Findzstd.cmake
 @@ -34,13 +34,14 @@ if(ARROW_ZSTD_USE_SHARED)
@@ -178,5 +175,5 @@ index 6659a682d..d8cc4f72d 100644
 +      "zstd${ZSTD_STATIC_LIB_SUFFIX}"
 +      "libzstd${ZSTD_STATIC_LIB_SUFFIX}")
  endif()
-
+ 
  # First, find via if specified ZTD_ROOT
